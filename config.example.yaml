@@ -1,0 +1,24 @@
+# relayctl example configuration
+# Copy to relay.yaml and adjust to your environment.
+
+server:
+  # Address and port the reverse proxy listens on.
+  addr: ":8080"
+
+  # Optional TLS — remove the tls block to run plain HTTP.
+  # tls:
+  #   cert: /etc/relayctl/tls/cert.pem
+  #   key:  /etc/relayctl/tls/key.pem
+
+routes:
+  # Route requests whose path starts with /api/ to a backend service.
+  - name: api-service
+    match: /api/
+    backend: http://127.0.0.1:9000
+    strip_prefix: true   # Remove /api/ before forwarding
+
+  # Static frontend served by a Node dev server.
+  - name: frontend
+    match: /
+    backend: http://127.0.0.1:3000
+    strip_prefix: false
