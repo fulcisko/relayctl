@@ -79,3 +79,19 @@ func TestLoad_FileNotFound(t *testing.T) {
 		t.Fatal("expected error for missing file")
 	}
 }
+
+func TestLoad_InvalidYAML(t *testing.T) {
+	invalid := `
+server:
+  addr: ":8080"
+routes:
+  - name: bad
+    match: /
+  backend: not-indented-correctly
+    extra: [unclosed
+`
+	_, err := config.Load(writeTemp(t, invalid))
+	if err == nil {
+		t.Fatal("expected error for malformed YAML")
+	}
+}
