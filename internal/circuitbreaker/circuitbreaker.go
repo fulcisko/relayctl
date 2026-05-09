@@ -6,46 +6,42 @@ import (
 	"time"
 )
 
-// State represents the circuit breaker state.
-type State int
-
 const (
-	StateClosed State = iota
-	StateOpen
-	StateHalfOpen
+	StateClosed   = "closed"
+	StateOpen     = "open"
+	StateHalfOpen = "half-open"
 )
 
+// ErrCircuitOpen is returned when the circuit breaker is open.
 var ErrCircuitOpen = errors.New("circuit breaker is open")
 
-// Breaker is a simple circuit breaker for a single backend.
-type Breaker struct {
-	mu           sync.Mutex
-	failures     int
-	maxFailures  int
-	resetTimeout time.Duration
-	state        State
-	openedAt     time.Time
+// CircuitBreaker implements the circuit breaker pattern.
+type CircuitBreaker struct {
+	mu          sync.Mutex
+	maxFailures uint
+	openTimeout time.Duration
+	failures    uint
+	state       string
+	openedAt    time.Time
 }
 
-// New creates a new Breaker with the given failure threshold and reset timeout.
-func New(maxFailures int, resetTimeout time.Duration) *Breaker {
-	return &Breaker{
-		maxFailures:  maxFailures,
-		resetTimeout: resetTimeout,
-		state:        StateClosed,
+// New creates a CircuitBreaker with the given failure threshold and open timeout in seconds.
+func New(maxFailures uint, openTimeoutSecs int) *CircuitBreaker {
+	return &CircuitBreaker{
+		maxFailures: maxFailures,
+		openTimeout: time.Duration(openTimeoutSecs) * time.Second,
+		state:       StateClosed,
 	}
 }
 
-// Allow returns nil if the request is allowed, or ErrCircuitOpen if the
-// circuit is open. It transitions to HalfOpen after the reset timeout.
-func (b *Breaker) Allow() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	switch b.state {
+// Allow checks whether a request is permitted.
+func (cb *CircuitBreaker) Allow() error {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	switch cb.state {
 	case StateOpen:
-		if time.Since(b.openedAt) >= b.resetTimeout {
-			b.state = StateHalfOpen
+		if time.Since(cb.openedAt) >= cb.openTimeout {
+			cb.state = StateHalfOpen
 			return nil
 		}
 		return ErrCircuitOpen
@@ -54,29 +50,36 @@ func (b *Breaker) Allow() error {
 	}
 }
 
-// RecordSuccess resets the breaker on a successful call.
-func (b *Breaker) RecordSuccess() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.failures = 0
-	b.state = StateClosed
+// RecordSuccess records a successful call, closing the circuit if half-open.
+func (cb *CircuitBreaker) RecordSuccess() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures = 0
+	cb.state = StateClosed
 }
 
-// RecordFailure increments the failure counter and opens the circuit if the
-// threshold is reached.
-func (b *Breaker) RecordFailure() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.failures++
-	if b.failures >= b.maxFailures {
-		b.state = StateOpen
-		b.openedAt = time.Now()
+// RecordFailure records a failed call and may open the circuit.
+func (cb *CircuitBreaker) RecordFailure() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures++
+	if cb.failures >= cb.maxFailures {
+		cb.state = StateOpen
+		cb.openedAt = time.Now()
 	}
 }
 
-// State returns the current state of the breaker.
-func (b *Breaker) State() State {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.state
+// Reset resets the circuit breaker to closed state.
+func (cb *CircuitBreaker) Reset() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures = 0
+	cb.state = StateClosed
+}
+
+// State returns the current state string.
+func (cb *CircuitBreaker) State() string {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.state
 }
