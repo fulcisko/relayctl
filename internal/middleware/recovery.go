@@ -29,3 +29,26 @@ func Chain(h http.Handler, middlewares ...func(http.Handler) http.Handler) http.
 	}
 	return h
 }
+
+// RequestLogger returns an HTTP middleware that logs the method, path, and
+// response status for every incoming request.
+func RequestLogger(logger *log.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(rw, r)
+			logger.Printf("%s %s %d", r.Method, r.URL.Path, rw.status)
+		})
+	}
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code.
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
