@@ -96,3 +96,13 @@ func TestAdaptiveBalancer_EMA_Convergence(t *testing.T) {
 		t.Errorf("expected 5 samples, got %d", b.samples["a:80"])
 	}
 }
+
+func TestAdaptiveBalancer_AvgLatency_UnknownBackend(t *testing.T) {
+	b, _ := NewAdaptiveBalancer([]string{"a:80"})
+
+	// Querying a backend that has never been used should return zero.
+	latency := b.AvgLatency("unknown:80")
+	if latency != 0 {
+		t.Errorf("expected zero latency for unknown backend, got %v", latency)
+	}
+}
