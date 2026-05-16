@@ -4,19 +4,24 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/yourusername/relayctl/internal/upstream"
+	"github.com/lucianoayres/relayctl/internal/upstream"
 )
 
+type headerRequest struct {
+	Backend string               `json:"backend"`
+	Rules   upstream.HeaderRules `json:"rules"`
+}
+
+type deleteBackendRequest struct {
+	Backend string `json:"backend"`
+}
+
 // NewHeaderHandler returns an http.Handler for managing per-backend header rules.
-//
-// GET  /admin/headers          → snapshot of all rules
-// PUT  /admin/headers          → set rule for a backend  {"backend":"...", "rule":{...}}
-// DELETE /admin/headers?backend=<url> → remove rule
 func NewHeaderHandler(reg *upstream.HeaderRegistry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			handleGetHeaders(w, reg)
+			handleGetHeaders(w, r, reg)
 		case http.MethodPut:
 			handleSetHeader(w, r, reg)
 		case http.MethodDelete:
@@ -27,33 +32,37 @@ func NewHeaderHandler(reg *upstream.HeaderRegistry) http.Handler {
 	})
 }
 
-func handleGetHeaders(w http.ResponseWriter, reg *upstream.HeaderRegistry) {
+func handleGetHeaders(w http.ResponseWriter, _ *http.Request, reg *upstream.HeaderRegistry) {
+	snapshot := reg.Snapshot()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(reg.Snapshot())
+	_ = json.NewEncoder(w).Encode(snapshot)
 }
 
 func handleSetHeader(w http.ResponseWriter, r *http.Request, reg *upstream.HeaderRegistry) {
-	var body struct {
-		Backend string             `json:"backend"`
-		Rule    upstream.HeaderRule `json:"rule"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	var req headerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if err := reg.Set(body.Backend, body.Rule); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if req.Backend == "" {
+		http.Error(w, "backend is required", http.StatusBadRequest)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	reg.Set(req.Backend, req.Rules)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func handleDeleteHeader(w http.ResponseWriter, r *http.Request, reg *upstream.HeaderRegistry) {
-	backend := r.URL.Query().Get("backend")
-	if backend == "" {
-		http.Error(w, "missing backend query param", http.StatusBadRequest)
+	var req deleteBackendRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	reg.Delete(backend)
+	if req.Backend == "" {
+		http.Error(w, "backend is required", http.StatusBadRequest)
+		return
+	}
+	reg.Delete(req.Backend)
 	w.WriteHeader(http.StatusNoContent)
 }
