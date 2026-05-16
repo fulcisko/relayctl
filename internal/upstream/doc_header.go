@@ -1,20 +1,21 @@
-// Package upstream provides load balancing and upstream management
-// for the relayctl reverse proxy.
+// Package upstream provides balancer implementations and per-backend
+// configuration registries used by the reverse proxy.
 //
 // # Header Registry
 //
-// The HeaderRegistry allows per-backend request and response header
-// manipulation. Headers can be injected, overwritten, or removed before
-// a request is forwarded or after a response is received.
+// NewHeaderRegistry creates a registry that stores request/response header
+// overrides on a per-backend basis. Call Apply to mutate an *http.Request
+// before it is forwarded.
 //
-// Example usage:
+// Example:
 //
 //	reg := upstream.NewHeaderRegistry()
 //	reg.Set("http://backend:8080", upstream.HeaderRules{
-//		RequestAdd:  map[string]string{"X-Forwarded-By": "relayctl"},
-//		ResponseDel: []string{"X-Internal-Token"},
+//		RequestSet:  map[string]string{"X-Forwarded-By": "relayctl"},
+//		RequestDel:  []string{"X-Internal-Token"},
+//		ResponseSet: map[string]string{"X-Cache": "miss"},
 //	})
 //
-//	// Apply to an outgoing request:
+//	// later, in the proxy transport:
 //	reg.Apply("http://backend:8080", req)
 package upstream
