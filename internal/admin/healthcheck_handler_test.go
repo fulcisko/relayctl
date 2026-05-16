@@ -84,3 +84,32 @@ func TestHealthCheckHandler_EmptyCollector(t *testing.T) {
 		t.Errorf("expected empty results, got %d", len(results))
 	}
 }
+
+func TestHealthCheckHandler_AllHealthy(t *testing.T) {
+	collector := &mockHealthCollector{
+		statuses: map[string]bool{
+			"http://backend1:8080": true,
+			"http://backend2:8080": true,
+		},
+	}
+
+	h := NewHealthCheckHandler(collector)
+	req := httptest.NewRequest(http.MethodGet, "/admin/health", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	var results []struct {
+		URL     string `json:"url"`
+		Healthy bool   `json:"healthy"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&results); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	for _, r := range results {
+		if !r.Healthy {
+			t.Errorf("expected backend %s to be healthy", r.URL)
+		}
+	}
+}
