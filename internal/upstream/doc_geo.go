@@ -28,6 +28,12 @@
 //	apB, _ := upstream.New([]string{"http://ap-south:8080"})
 //	geo.SetRegion("ap", apB)
 //
+//	// Remove a region's balancer, falling back to the default.
+//	geo.RemoveRegion("ap")
+//
+//	// List all currently registered region keys.
+//	regions := geo.Regions() // e.g. ["us", "eu"]
+//
 // The admin endpoint /admin/geo exposes a GET (snapshot) and PUT (update
 // region backends) interface for live configuration.
 package upstream
