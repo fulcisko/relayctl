@@ -98,3 +98,25 @@ func TestReload(t *testing.T) {
 		t.Errorf("old route should be gone, expected 502, got %d", rec.Code)
 	}
 }
+
+func TestReload_InvalidBackend(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	rp, err := New(testConfig(backend.URL))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	badCfg := &config.Config{
+		Addr: ":8080",
+		Routes: []config.Route{
+			{Prefix: "/v2", Backend: "://invalid-url"},
+		},
+	}
+	if err := rp.Reload(badCfg); err == nil {
+		t.Fatal("expected error reloading with invalid backend URL, got nil")
+	}
+}
