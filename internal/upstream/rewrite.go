@@ -65,6 +65,11 @@ func (r *RewriteRegistry) Apply(backend string, req *http.Request) {
 	}
 }
 
+// Len returns the number of rewrite rules currently registered.
+func (r *RewriteRegistry) Len() int {
+	return len(r.rules)
+}
+
 // errEmptyBackend is a sentinel for missing backend keys.
 var errEmptyBackend = errRewriteEmptyBackend("backend must not be empty")
 
