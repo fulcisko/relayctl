@@ -20,11 +20,24 @@ func newTestBalancer(t *testing.T) *upstream.Balancer {
 	return b
 }
 
-func TestBalancerHandler_Get(t *testing.T) {
+// serveBalancer is a test helper that sends a request to the balancer handler
+// and returns the recorded response.
+func serveBalancer(t *testing.T, method, body string) *httptest.ResponseRecorder {
+	t.Helper()
 	h := NewBalancerHandler(newTestBalancer(t))
-	req := httptest.NewRequest(http.MethodGet, "/admin/balancer", nil)
+	var req *http.Request
+	if body != "" {
+		req = httptest.NewRequest(method, "/admin/balancer", strings.NewReader(body))
+	} else {
+		req = httptest.NewRequest(method, "/admin/balancer", nil)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
+	return w
+}
+
+func TestBalancerHandler_Get(t *testing.T) {
+	w := serveBalancer(t, http.MethodGet, "")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -39,11 +52,7 @@ func TestBalancerHandler_Get(t *testing.T) {
 }
 
 func TestBalancerHandler_Update_Valid(t *testing.T) {
-	h := NewBalancerHandler(newTestBalancer(t))
-	body := `{"backends":["http://new1:9090"]}`
-	req := httptest.NewRequest(http.MethodPut, "/admin/balancer", strings.NewReader(body))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	w := serveBalancer(t, http.MethodPut, `{"backends":["http://new1:9090"]}`)
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", w.Code)
@@ -51,11 +60,7 @@ func TestBalancerHandler_Update_Valid(t *testing.T) {
 }
 
 func TestBalancerHandler_Update_Empty(t *testing.T) {
-	h := NewBalancerHandler(newTestBalancer(t))
-	body := `{"backends":[]}`
-	req := httptest.NewRequest(http.MethodPut, "/admin/balancer", strings.NewReader(body))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	w := serveBalancer(t, http.MethodPut, `{"backends":[]}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
@@ -74,10 +79,7 @@ func TestBalancerHandler_Update_InvalidJSON(t *testing.T) {
 }
 
 func TestBalancerHandler_MethodNotAllowed(t *testing.T) {
-	h := NewBalancerHandler(newTestBalancer(t))
-	req := httptest.NewRequest(http.MethodDelete, "/admin/balancer", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	w := serveBalancer(t, http.MethodDelete, "")
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", w.Code)
