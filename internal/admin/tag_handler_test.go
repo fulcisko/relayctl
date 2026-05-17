@@ -14,11 +14,24 @@ func newTestTagRegistry() *upstream.TagRegistry {
 	return upstream.NewTagRegistry()
 }
 
+// makeTagRequest is a helper that creates a recorded HTTP request against the
+// TagHandler and returns the response recorder for assertion.
+func makeTagRequest(h http.Handler, method, target, body string) *httptest.ResponseRecorder {
+	var reqBody *strings.Reader
+	if body != "" {
+		reqBody = strings.NewReader(body)
+	} else {
+		reqBody = strings.NewReader("")
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, target, reqBody)
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
 func TestTagHandler_Get_Empty(t *testing.T) {
 	h := NewTagHandler(newTestTagRegistry())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/admin/tags", nil)
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodGet, "/admin/tags", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -34,10 +47,7 @@ func TestTagHandler_Get_Empty(t *testing.T) {
 func TestTagHandler_Put_Valid(t *testing.T) {
 	reg := newTestTagRegistry()
 	h := NewTagHandler(reg)
-	body := `{"backend":"http://backend:9000","tags":["stable","eu"]}`
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/admin/tags", strings.NewReader(body))
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodPut, "/admin/tags", `{"backend":"http://backend:9000","tags":["stable","eu"]}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
 	}
@@ -52,9 +62,7 @@ func TestTagHandler_Put_Valid(t *testing.T) {
 
 func TestTagHandler_Put_InvalidJSON(t *testing.T) {
 	h := NewTagHandler(newTestTagRegistry())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/admin/tags", strings.NewReader("not-json"))
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodPut, "/admin/tags", "not-json")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
@@ -62,10 +70,7 @@ func TestTagHandler_Put_InvalidJSON(t *testing.T) {
 
 func TestTagHandler_Put_MissingBackend(t *testing.T) {
 	h := NewTagHandler(newTestTagRegistry())
-	body := `{"backend":"","tags":["v1"]}`
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/admin/tags", strings.NewReader(body))
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodPut, "/admin/tags", `{"backend":"","tags":["v1"]}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
@@ -75,10 +80,7 @@ func TestTagHandler_Delete_Success(t *testing.T) {
 	reg := newTestTagRegistry()
 	_ = reg.Set("http://backend:9000", []string{"canary"})
 	h := NewTagHandler(reg)
-	body := `{"backend":"http://backend:9000"}`
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/admin/tags", strings.NewReader(body))
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodDelete, "/admin/tags", `{"backend":"http://backend:9000"}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
 	}
@@ -90,9 +92,7 @@ func TestTagHandler_Delete_Success(t *testing.T) {
 
 func TestTagHandler_MethodNotAllowed(t *testing.T) {
 	h := NewTagHandler(newTestTagRegistry())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/admin/tags", nil)
-	h.ServeHTTP(rec, req)
+	rec := makeTagRequest(h, http.MethodPost, "/admin/tags", "")
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rec.Code)
 	}
